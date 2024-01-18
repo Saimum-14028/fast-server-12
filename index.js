@@ -27,6 +27,39 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
    // await client.connect();
 
+   const userCollection = client.db('Fast').collection('users');
+   const parcelCollection = client.db('Fast').collection('parcels');
+   const reviewCollection = client.db('Fast').collection('reviews');
+
+   // review related api
+   app.post('/reviews', async (req, res) => {
+    const newReview = req.body;
+    console.log(newReview);
+    const result = await reviewCollection.insertOne(newReview);
+    res.send(result);
+  })
+
+    app.get('/reviews', async (req, res) => {
+
+      let queryObj = {};
+
+      const delivery_men_id = req.query.delivery_men_id;
+
+      console.log(delivery_men_id);
+
+      if(delivery_men_id) {
+          queryObj.delivery_men_id = delivery_men_id;
+      }
+    
+      console.log(queryObj);
+
+      const cursor = reviewCollection.find(queryObj);
+      const result = await cursor.toArray();
+      console.log(result);
+      res.send(result);
+    
+    })
+
    // user related api
    app.post('/users', async (req, res) => {
     const user = req.body;
