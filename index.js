@@ -26,7 +26,7 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
    // await client.connect();
-   
+
    // user related api
    app.post('/users', async (req, res) => {
     const user = req.body;
@@ -183,6 +183,114 @@ async function run() {
       );
     res.send(result);
     });
+
+    // parcel related api
+  app.post('/parcels', async (req, res) => {
+    const newReview = req.body;
+    newReview.requestedDeliveryDate = new Date(req.body.requestedDeliveryDate);
+   // console.log(newReview);
+    console.log(req.body.requestedDeliveryDate)
+    const result = await parcelCollection.insertOne(newReview);
+    res.send(result);
+  })
+
+  app.get('/parcels', async (req, res) => {
+
+    let queryObj = {};
+
+    const email = req.query.email;
+    const status = req.query.status;
+    const delivery_men_email = req.query.delivery_men_email;
+    const delivery_men_id = req.query.delivery_men_id;
+
+ //   console.log(delivery_men_id);
+
+    if(email){
+      queryObj.email = email;
+    }
+
+    if(status){
+      queryObj.status = status;
+    }
+
+    if(delivery_men_email){
+      queryObj.delivery_men_email = delivery_men_email;
+    }
+
+    if(delivery_men_id) {
+        queryObj.delivery_men_id = delivery_men_id;
+    }
+
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+
+    //console.log(startDate, endDate);
+
+    if(startDate && endDate){
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      console.log(start, end);
+      // console.log(startDate, endDate);
+      queryObj = {requestedDeliveryDate: {
+        $gte: start,
+        $lte: end
+      }}
+    }
+    
+    console.log(queryObj);
+
+    const cursor = parcelCollection.find(queryObj);
+    const result = await cursor.toArray();
+    console.log(result);
+    res.send(result); 
+  })
+
+  app.get("/parcels/:id", async (req, res) => {
+    const id = req.params.id;
+    console.log("id", id);
+    const query = {
+      _id: new ObjectId(id),
+    };
+    const result = await parcelCollection.findOne(query);
+    console.log(result);
+    res.send(result);
+  });
+
+  app.put("/parcels/:id", async (req, res) => {
+    const id = req.params.id;
+    const data = req.body;
+
+    const filter = {
+      _id: new ObjectId(id),
+    };
+    const options = { upsert: true };
+    const updatedData = {
+      $set: {
+        number: data.number, 
+        parcel_type: data.parcel_type, 
+        receiver_name: data.receiver_name, 
+        receiver_number: data.receiver_number, 
+        parcel_weight: data.parcel_weight, 
+        cost: data.cost, 
+        delivery_address: data.delivery_address, 
+        requestedDeliveryDate: data.requestedDeliveryDate, 
+        latitude: data.latitude, 
+        longitude: data.longitude,
+        status: data.status,
+        approximate_delivery_date: data.approximate_delivery_date,
+        delivery_men_id: data.delivery_men_id,
+        delivery_men_email: data.delivery_men_email
+      },
+    };
+    const result = await parcelCollection.updateOne(
+      filter,
+      updatedData,
+      options
+    );
+    res.send(result);
+  });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
