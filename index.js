@@ -1,9 +1,9 @@
 require('dotenv').config();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
 const express = require('express');
 const cors = require('cors');
-
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -31,10 +31,27 @@ async function run() {
    const parcelCollection = client.db('Fast').collection('parcels');
    const reviewCollection = client.db('Fast').collection('reviews');
 
+   // payment intent
+   app.post('/create-payment-intent', async (req, res) => {
+    const { price } = req.body;
+    const amount = parseInt(price * 100);
+    //console.log(amount, 'amount inside the intent')
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: 'usd',
+      payment_method_types: ['card']
+    });
+
+    res.send({
+      clientSecret: paymentIntent.client_secret
+    })
+  });
+
    // review related api
    app.post('/reviews', async (req, res) => {
     const newReview = req.body;
-    console.log(newReview);
+   // console.log(newReview);
     const result = await reviewCollection.insertOne(newReview);
     res.send(result);
   })
@@ -45,17 +62,17 @@ async function run() {
 
       const delivery_men_id = req.query.delivery_men_id;
 
-      console.log(delivery_men_id);
+      //console.log(delivery_men_id);
 
       if(delivery_men_id) {
           queryObj.delivery_men_id = delivery_men_id;
       }
     
-      console.log(queryObj);
+      //console.log(queryObj);
 
       const cursor = reviewCollection.find(queryObj);
       const result = await cursor.toArray();
-      console.log(result);
+      //console.log(result);
       res.send(result);
     
     })
@@ -63,7 +80,7 @@ async function run() {
    // user related api
    app.post('/users', async (req, res) => {
     const user = req.body;
-    console.log(user);
+   // console.log(user);
     
     const query = {email: user.email};
     const existingUser = await userCollection.findOne(query);
@@ -91,7 +108,7 @@ async function run() {
       queryObj.role = role;
     }
 
-    console.log(queryObj);
+  //  console.log(queryObj);
 
     const cursor = userCollection.find(queryObj);
     const result = (await cursor.toArray());
@@ -108,7 +125,7 @@ async function run() {
       queryObj.status = status;
     }
 
-    console.log(queryObj);
+   // console.log(queryObj);
 
     const cursor = parcelCollection.find(queryObj);
     const result = (await cursor.toArray());
@@ -135,7 +152,7 @@ async function run() {
       }
     ]).toArray();
 
-    console.log(result);
+  //  console.log(result);
 
     res.send(result);
   })
@@ -167,12 +184,12 @@ async function run() {
       sortObj[sortf] = sorto;
     }
 
-    console.log(sortObj);
+   // console.log(sortObj);
 
     const page = parseInt(req.query.page);
     const size = parseInt(req.query.size);
 
-    console.log('pagination query', page, size);
+   // console.log('pagination query', page, size);
 
     if(size){
       const result = await userCollection.find(queryObj)
@@ -217,12 +234,12 @@ async function run() {
     res.send(result);
     });
 
-    // parcel related api
+  // parcel related api
   app.post('/parcels', async (req, res) => {
     const newReview = req.body;
     newReview.requestedDeliveryDate = new Date(req.body.requestedDeliveryDate);
    // console.log(newReview);
-    console.log(req.body.requestedDeliveryDate)
+  //  console.log(req.body.requestedDeliveryDate)
     const result = await parcelCollection.insertOne(newReview);
     res.send(result);
   })
@@ -272,22 +289,22 @@ async function run() {
       }}
     }
     
-    console.log(queryObj);
+   // console.log(queryObj);
 
     const cursor = parcelCollection.find(queryObj);
     const result = await cursor.toArray();
-    console.log(result);
+   // console.log(result);
     res.send(result); 
   })
 
   app.get("/parcels/:id", async (req, res) => {
     const id = req.params.id;
-    console.log("id", id);
+  //  console.log("id", id);
     const query = {
       _id: new ObjectId(id),
     };
     const result = await parcelCollection.findOne(query);
-    console.log(result);
+  //  console.log(result);
     res.send(result);
   });
 
@@ -308,13 +325,14 @@ async function run() {
         parcel_weight: data.parcel_weight, 
         cost: data.cost, 
         delivery_address: data.delivery_address, 
-        requestedDeliveryDate: data.requestedDeliveryDate, 
+        requestedDeliveryDate: new Date(data.requestedDeliveryDate),
         latitude: data.latitude, 
         longitude: data.longitude,
         status: data.status,
         approximate_delivery_date: data.approximate_delivery_date,
         delivery_men_id: data.delivery_men_id,
-        delivery_men_email: data.delivery_men_email
+        delivery_men_email: data.delivery_men_email,
+        payment_status: data.payment_status
       },
     };
     const result = await parcelCollection.updateOne(
