@@ -6,6 +6,15 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
+const nodemailer = require('nodemailer')
+
+const formData = require('form-data');
+const Mailgun = require('mailgun.js');
+const mailgun = new Mailgun(formData);
+const mg = mailgun.client({
+  username: 'api',
+  key: process.env.MAIL_GUN_API_KEY,
+});
 
 // middleware
 app.use(cors());
@@ -29,6 +38,7 @@ async function run() {
 
    const userCollection = client.db('Fast').collection('users');
    const parcelCollection = client.db('Fast').collection('parcels');
+   const paymentCollection = client.db('Fast').collection('payments');
    const reviewCollection = client.db('Fast').collection('reviews');
 
    // payment intent
@@ -47,6 +57,99 @@ async function run() {
       clientSecret: paymentIntent.client_secret
     })
   });
+
+  app.post('/payments', async (req, res) => {
+    const newPayment = req.body;
+  //  console.log(newPayment);
+    const result = await paymentCollection.insertOne(newPayment);
+    res.send(result);
+
+    // Send email
+
+    //Create a transporter
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.USER,
+        pass: process.env.PASS,
+      },
+    })
+
+    // const mailOptions = {
+    //   from: process.env.USER,
+    //   to: req.body.email,
+    //   subject: 'Payment Confirmation',
+    //   html: `<p>You have paid ${req.body.cost}. Your Transaction id is: ${req.body.transactionId}</p>.`,
+    // }
+
+    //verify connection
+    await new Promise((resolve, reject) => {
+      // verify connection configuration
+      transporter.verify(function (error, success) {
+          if (error) {
+              console.log(error);
+              reject(error);
+          } else {
+              console.log("Server is ready to take our messages");
+              resolve(success);
+          }
+      });
+  });
+    // transporter.verify((error, success) => {
+    //   if (error) {
+    //     console.log(error)
+    //   } else {
+    //     console.log('Server is ready to take our emails', success)
+    //   }
+    // })
+
+    const mailBody = {
+      from: {
+        name: 'FAST',
+        address: process.env.USER,
+      },
+      to: req.body.email,
+      subject: 'Payment Confirmation',
+      html: `<p>Dear ${req.body.name} Sir/Madam,<br>You have paid ${req.body.price}. Your Transaction id is: ${req.body.transactionId}. Thanks for having with us.</p>.`,
+    }
+
+    await new Promise((resolve, reject) => {
+      transporter.sendMail(mailBody, (err, info) => {
+        if (err) {
+          console.error(err);
+          reject(err);
+        } else {
+          resolve(info);
+        }
+      });
+    });
+
+    // transporter.sendMail(mailBody, (error, info) => {
+    //   if (error) {
+    //     console.log(error)
+    //   } else {
+    //     console.log('Email sent: ' + info.response)
+    //   }
+    // })
+
+    // send user email about payment confirmation
+    mg.messages
+    .create(process.env.MAIL_SENDING_DOMAIN, {
+      from: "Mailgun Sandbox <postmaster@sandboxa727ad46ef9041bdae00844ad2d3317a.mailgun.org>",
+      to: ["faridarahman1963@gmail.com"],
+      subject: "Payment Confirmation",
+      html: `
+        <div>
+        <p>Dear ${req.body.name} Sir/Madam,<br>You have paid ${req.body.price}. Your Transaction id is: ${req.body.transactionId}. Thanks for having with us.</p>
+        </div>
+      `
+    })
+    .then(msg => console.log(msg)) // logs response data
+    .catch(err => console.log(err)); // logs any error`;
+  })
 
    // review related api
    app.post('/reviews', async (req, res) => {
